@@ -106,96 +106,7 @@ def extract_link(text):
 
 
 # =========================
-# TELEGRAM CLIENT
-# =========================
-
-client = TelegramClient(
-    StringSession(SESSION_STRING),
-    API_ID,
-    API_HASH
-)
-
-
-# =========================
-# MESSAGE HANDLER
-# =========================
-
-@client.on(events.NewMessage(chats=GROUP_ID))
-async def raidar_handler(event):
-
-    # Only accept messages from Raidar
-    if event.sender_id != RAIDAR_ID:
-        return
-
-    message = event.message
-
-    print("\n==============================")
-    print("Raidar message detected!")
-
-    # Extract X/Twitter link
-    link = extract_link(message.raw_text)
-
-    if not link:
-        print("No X/Twitter link found.")
-        return
-
-    print("Link:", link)
-
-    # Check database
-    if already_processed(link):
-        print("Already smashed before → SKIPPING")
-        return
-
-    print("New link → looking for Smash button...")
-
-    # Make sure there are buttons
-    if not message.buttons:
-        print("No buttons found.")
-        return
-
-    # Search buttons
-    for row in message.buttons:
-
-        for button in row:
-
-            button_text = button.text or ""
-
-            print("Found button:", repr(button_text))
-
-            # Detect Smash button
-            if "👊" in button_text or "smash" in button_text.lower():
-
-                print("Smash button found!")
-
-                try:
-
-                    await message.click(text=button_text)
-
-                    print("👊 SMASH SUCCESSFUL!")
-
-                    # Save ONLY after successful click
-                    save_link(link)
-
-                    print("Link saved to database.")
-
-                except FloodWaitError as e:
-
-                    print(
-                        f"Telegram requested a wait of "
-                        f"{e.seconds} seconds."
-                    )
-
-                except Exception as e:
-
-                    print("Smash failed:", repr(e))
-
-                return
-
-    print("Smash button was not found.")
-
-
-# =========================
-# START
+# MAIN
 # =========================
 
 async def main():
@@ -205,193 +116,139 @@ async def main():
     print("===================================")
     print("Raidar ID :", RAIDAR_ID)
     print("Group ID  :", GROUP_ID)
-    print("Status    : Listening...")
+    print("Status    : Starting...")
     print("===================================")
 
-    await client.start()
-
-    print("Telegram connected successfully!")
-    print("Waiting for Raidar messages...\n")
-
-    await client.run_until_disconnected()
-
-
-while True:
-
-    try:
-
-        asyncio.run(main())
-
-    except KeyboardInterrupt:
-
-        print("\nStopped.")
-        break
-
-    except Exception as e:
-
-        print("\nConnection error:", repr(e))
-        print("Reconnecting in 10 seconds...\n")
-
-        import time
-        time.sleep(10)
-db.commit()
-
-
-def already_processed(link):
-    result = db.execute(
-        "SELECT 1 FROM processed_links WHERE link = ?",
-        (link,)
-    ).fetchone()
-
-    return result is not None
-
-
-def save_link(link):
-    db.execute(
-        "INSERT OR IGNORE INTO processed_links (link) VALUES (?)",
-        (link,)
+    # IMPORTANT:
+    # Create the Telethon client INSIDE the same
+    # asyncio event loop that will run it.
+    client = TelegramClient(
+        StringSession(SESSION_STRING),
+        API_ID,
+        API_HASH
     )
-    db.commit()
 
 
-# =========================
-# LINK EXTRACTION
-# =========================
+    # =========================
+    # MESSAGE HANDLER
+    # =========================
 
-def extract_link(text):
-    pattern = r"https?://(?:www\.)?(?:x\.com|twitter\.com)/[^\s]+"
+    @client.on(events.NewMessage(chats=GROUP_ID))
+    async def raidar_handler(event):
 
-    match = re.search(pattern, text or "")
+        # Only accept messages from Raidar
+        if event.sender_id != RAIDAR_ID:
+            return
 
-    if not match:
-        return None
+        message = event.message
 
-    return match.group(0).rstrip(".,)>]}\"'")
+        print("\n==============================")
+        print("Raidar message detected!")
 
+        # Extract X/Twitter link
+        link = extract_link(message.raw_text)
 
-# =========================
-# TELEGRAM CLIENT
-# =========================
+        if not link:
+            print("No X/Twitter link found.")
+            return
 
-client = TelegramClient(
-    SESSION_NAME,
-    API_ID,
-    API_HASH
-)
+        print("Link:", link)
 
+        # Check database
+        if already_processed(link):
+            print("Already smashed before → SKIPPING")
+            return
 
-# =========================
-# MESSAGE HANDLER
-# =========================
+        print("New link → looking for Smash button...")
 
-@client.on(events.NewMessage(chats=GROUP_ID))
-async def raidar_handler(event):
+        # Make sure there are buttons
+        if not message.buttons:
+            print("No buttons found.")
+            return
 
-    # Only accept messages from Raidar
-    if event.sender_id != RAIDAR_ID:
-        return
+        # Search buttons
+        for row in message.buttons:
 
-    message = event.message
+            for button in row:
 
-    print("\n==============================")
-    print("Raidar message detected!")
+                button_text = button.text or ""
 
-    # Extract X/Twitter link
-    link = extract_link(message.raw_text)
+                print("Found button:", repr(button_text))
 
-    if not link:
-        print("No X/Twitter link found.")
-        return
+                # Detect Smash button
+                if (
+                    "👊" in button_text
+                    or "smash" in button_text.lower()
+                ):
 
-    print("Link:", link)
+                    print("Smash button found!")
 
-    # Check database
-    if already_processed(link):
-        print("Already smashed before → SKIPPING")
-        return
+                    try:
 
-    print("New link → looking for Smash button...")
+                        await message.click(
+                            text=button_text
+                        )
 
-    # Make sure there are buttons
-    if not message.buttons:
-        print("No buttons found.")
-        return
+                        print("👊 SMASH SUCCESSFUL!")
 
-    # Search buttons
-    for row in message.buttons:
+                        # Save ONLY after successful click
+                        save_link(link)
 
-        for button in row:
+                        print("Link saved to database.")
 
-            button_text = button.text or ""
+                    except FloodWaitError as e:
 
-            print("Found button:", repr(button_text))
+                        print(
+                            f"Telegram requested a wait of "
+                            f"{e.seconds} seconds."
+                        )
 
-            # Detect Smash button
-            if "👊" in button_text or "smash" in button_text.lower():
+                    except Exception as e:
 
-                print("Smash button found!")
+                        print(
+                            "Smash failed:",
+                            repr(e)
+                        )
 
-                try:
+                    return
 
-                    await message.click(text=button_text)
-
-                    print("👊 SMASH SUCCESSFUL!")
-
-                    # Save ONLY after successful click
-                    save_link(link)
-
-                    print("Link saved to database.")
-
-                except FloodWaitError as e:
-
-                    print(
-                        f"Telegram requested a wait of "
-                        f"{e.seconds} seconds."
-                    )
-
-                except Exception as e:
-
-                    print("Smash failed:", repr(e))
-
-                return
-
-    print("Smash button was not found.")
+        print("Smash button was not found.")
 
 
-# =========================
-# START
-# =========================
-
-async def main():
-
-    print("===================================")
-    print("     RAIDAR SMASHER")
-    print("===================================")
-    print("Raidar ID :", RAIDAR_ID)
-    print("Group ID  :", GROUP_ID)
-    print("Status    : Listening...")
-    print("===================================")
-
-    await client.start()
-
-    print("Telegram connected successfully!")
-    print("Waiting for Raidar messages...\n")
-
-    await client.run_until_disconnected()
-
-
-while True:
+    # =========================
+    # CONNECT
+    # =========================
 
     try:
+
+        await client.start()
+
+        print("Telegram connected successfully!")
+        print("Waiting for Raidar messages...\n")
+
+        # Keep the SAME event loop alive.
+        await client.run_until_disconnected()
+
+    finally:
+
+        if client.is_connected():
+            await client.disconnect()
+
+
+# =========================
+# START PROGRAM
+# =========================
+
+if __name__ == "__main__":
+
+    try:
+
         asyncio.run(main())
 
     except KeyboardInterrupt:
+
         print("\nStopped.")
-        break
 
     except Exception as e:
-        print("\nConnection error:", repr(e))
-        print("Reconnecting in 10 seconds...\n")
 
-        import time
-        time.sleep(10)
+        print("\nFatal error:", repr(e))
